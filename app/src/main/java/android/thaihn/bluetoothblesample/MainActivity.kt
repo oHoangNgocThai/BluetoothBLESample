@@ -13,6 +13,7 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.databinding.DataBindingUtil
+import android.databinding.ObservableField
 import android.os.Bundle
 import android.os.Handler
 import android.os.IBinder
@@ -20,6 +21,7 @@ import android.support.v7.app.AppCompatActivity
 import android.support.v7.widget.LinearLayoutManager
 import android.thaihn.bluetoothblesample.databinding.ActivityMainBinding
 import android.util.Log
+import android.view.View
 import android.widget.Toast
 
 class MainActivity : AppCompatActivity(), DeviceListAdapter.DeviceListener {
@@ -28,7 +30,7 @@ class MainActivity : AppCompatActivity(), DeviceListAdapter.DeviceListener {
         private val TAG = MainActivity::class.java.simpleName
 
         private const val REQUEST_ENABLE_BLUETOOTH = 99
-        private const val SCAN_PERIOD: Long = 10000
+        private const val SCAN_PERIOD: Long = 1000 * 5
     }
 
     private lateinit var mainBinding: ActivityMainBinding
@@ -45,7 +47,7 @@ class MainActivity : AppCompatActivity(), DeviceListAdapter.DeviceListener {
     private var mHandler: Handler = Handler()
 
     // UI
-    private val mDeviceAdapter: DeviceListAdapter = DeviceListAdapter(this)
+    private val mDeviceAdapter: DeviceListAdapter = DeviceListAdapter(arrayListOf(), this)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -104,15 +106,19 @@ class MainActivity : AppCompatActivity(), DeviceListAdapter.DeviceListener {
             Log.d(TAG, "result code $resultCode")
             if (resultCode == Activity.RESULT_OK) {
                 // Do something
-                Toast.makeText(applicationContext, "Enabled bluetooth", Toast.LENGTH_SHORT).show()
+                if (!mScanning) {
+                    scanBLEDevice(true)
+                }
             } else if (resultCode == Activity.RESULT_CANCELED) {
                 // Show again
-                Toast.makeText(applicationContext, "You must enable Bluetooth", Toast.LENGTH_SHORT).show()
             }
         }
     }
 
     override fun onItemClick(item: BluetoothDevice) {
+        if (mScanning) {
+            scanBLEDevice(false)
+        }
     }
 
     // Enable Bluetooth when user disable
@@ -128,20 +134,26 @@ class MainActivity : AppCompatActivity(), DeviceListAdapter.DeviceListener {
                 // Stop scan after a pre-degined scan period
                 mHandler.postDelayed({
                     mScanning = false
+                    mainBinding.progress.visibility = View.GONE
                     mBluetoothLeService?.bluetoothAdapter?.bluetoothLeScanner?.stopScan(scanCallback)
                 }, SCAN_PERIOD)
 
                 mScanning = true
+                mainBinding.progress.visibility = View.VISIBLE
                 val scanFilter = ScanFilter.Builder()
                         .build()
                 val settings = ScanSettings.Builder()
                         .setScanMode(ScanSettings.SCAN_MODE_LOW_POWER)
                         .build()
-                mBluetoothLeService?.bluetoothAdapter?.bluetoothLeScanner?.startScan(listOf(scanFilter), settings, scanCallback)
-//                mBluetoothLeService?.bluetoothAdapter?.startLeScan()
+                mBluetoothLeService?.bluetoothAdapter?.bluetoothLeScanner?.startScan(
+                        listOf(scanFilter),
+                        settings,
+                        scanCallback
+                )
             }
             false -> {
                 mScanning = false
+                mainBinding.progress.visibility = View.GONE
                 mBluetoothLeService?.bluetoothAdapter?.bluetoothLeScanner?.stopScan(scanCallback)
             }
         }
@@ -151,7 +163,10 @@ class MainActivity : AppCompatActivity(), DeviceListAdapter.DeviceListener {
 
         override fun onScanResult(callbackType: Int, result: ScanResult?) {
             super.onScanResult(callbackType, result)
-            mDeviceAdapter.submitList(listOf(result?.device))
+            Log.d(TAG, "ScanCallback: device:$result")
+            result?.device?.let {
+                mDeviceAdapter.addDevice(it)
+            }
         }
     }
 

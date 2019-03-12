@@ -37,6 +37,12 @@ class DeviceListAdapter(
             binding.device = item
             binding.executePendingBindings()
 
+            if (item.name == null) {
+                binding.tvName.text = binding.tvName.context.getString(R.string.text_unknown_device)
+            } else {
+                binding.tvName.text = item.name
+            }
+
             binding.root.setOnClickListener {
                 listener.onItemClick(item)
             }
@@ -45,11 +51,12 @@ class DeviceListAdapter(
 
     fun addDevice(item: BluetoothDevice) {
         val index = items.indexOfFirst {
-            it.uuids.contentEquals(item.uuids)
+            it.address == item.address
         }
 
         if (index == -1) {
-
+            items.add(item)
+            notifyDataSetChanged()
         }
     }
 }
