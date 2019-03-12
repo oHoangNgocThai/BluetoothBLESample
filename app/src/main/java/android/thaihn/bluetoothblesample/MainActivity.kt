@@ -13,7 +13,6 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.databinding.DataBindingUtil
-import android.databinding.ObservableField
 import android.os.Bundle
 import android.os.Handler
 import android.os.IBinder
@@ -31,6 +30,8 @@ class MainActivity : AppCompatActivity(), DeviceListAdapter.DeviceListener {
 
         private const val REQUEST_ENABLE_BLUETOOTH = 99
         private const val SCAN_PERIOD: Long = 1000 * 5
+
+        const val EXTRA_BLUETOOTH_DEVICE = "BLUETOOTH_DEVICE"
     }
 
     private lateinit var mainBinding: ActivityMainBinding
@@ -48,22 +49,6 @@ class MainActivity : AppCompatActivity(), DeviceListAdapter.DeviceListener {
 
     // UI
     private val mDeviceAdapter: DeviceListAdapter = DeviceListAdapter(arrayListOf(), this)
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        mainBinding = DataBindingUtil.setContentView(this, R.layout.activity_main)
-
-        mainBinding.rvDevice.apply {
-            adapter = mDeviceAdapter
-            layoutManager = LinearLayoutManager(context, LinearLayoutManager.VERTICAL, false)
-        }
-
-        mainBinding.btnScan.setOnClickListener {
-            if (!mScanning) {
-                scanBLEDevice(true)
-            }
-        }
-    }
 
     private val mConnectionService = object : ServiceConnection {
 
@@ -90,6 +75,22 @@ class MainActivity : AppCompatActivity(), DeviceListAdapter.DeviceListener {
     override fun onStart() {
         super.onStart()
         bindService(Intent(this, BluetoothLeService::class.java), mConnectionService, Context.BIND_AUTO_CREATE)
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        mainBinding = DataBindingUtil.setContentView(this, R.layout.activity_main)
+
+        mainBinding.rvDevice.apply {
+            adapter = mDeviceAdapter
+            layoutManager = LinearLayoutManager(context, LinearLayoutManager.VERTICAL, false)
+        }
+
+        mainBinding.btnScan.setOnClickListener {
+            if (!mScanning) {
+                scanBLEDevice(true)
+            }
+        }
     }
 
     override fun onStop() {
@@ -119,11 +120,14 @@ class MainActivity : AppCompatActivity(), DeviceListAdapter.DeviceListener {
         if (mScanning) {
             scanBLEDevice(false)
         }
+        startActivity(Intent(this, ControlActivity::class.java).apply {
+            putExtra(EXTRA_BLUETOOTH_DEVICE, item)
+        })
     }
 
     // Enable Bluetooth when user disable
     private fun enableBluetooth() {
-        mBluetoothLeService?.bluetoothAdapter?.takeIf { it.isDisable }.apply {
+        mBluetoothLeService?.mBluetoothAdapter?.takeIf { it.isDisable }.apply {
             startActivityForResult(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE), REQUEST_ENABLE_BLUETOOTH)
         }
     }
@@ -135,7 +139,7 @@ class MainActivity : AppCompatActivity(), DeviceListAdapter.DeviceListener {
                 mHandler.postDelayed({
                     mScanning = false
                     mainBinding.progress.visibility = View.GONE
-                    mBluetoothLeService?.bluetoothAdapter?.bluetoothLeScanner?.stopScan(scanCallback)
+                    mBluetoothLeService?.mBluetoothAdapter?.bluetoothLeScanner?.stopScan(scanCallback)
                 }, SCAN_PERIOD)
 
                 mScanning = true
@@ -145,7 +149,7 @@ class MainActivity : AppCompatActivity(), DeviceListAdapter.DeviceListener {
                 val settings = ScanSettings.Builder()
                         .setScanMode(ScanSettings.SCAN_MODE_LOW_POWER)
                         .build()
-                mBluetoothLeService?.bluetoothAdapter?.bluetoothLeScanner?.startScan(
+                mBluetoothLeService?.mBluetoothAdapter?.bluetoothLeScanner?.startScan(
                         listOf(scanFilter),
                         settings,
                         scanCallback
@@ -154,7 +158,7 @@ class MainActivity : AppCompatActivity(), DeviceListAdapter.DeviceListener {
             false -> {
                 mScanning = false
                 mainBinding.progress.visibility = View.GONE
-                mBluetoothLeService?.bluetoothAdapter?.bluetoothLeScanner?.stopScan(scanCallback)
+                mBluetoothLeService?.mBluetoothAdapter?.bluetoothLeScanner?.stopScan(scanCallback)
             }
         }
     }
